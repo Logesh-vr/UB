@@ -12,7 +12,19 @@ const THEME_STORAGE_KEY = 'ub_theme';
 const DELOAD_STORAGE_KEY = 'ub_deload_mode';
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const SHORT_DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+// Robust URL resolution for environment variables
+const getApiUrl = () => {
+  let url = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+  if (!url.startsWith('http')) {
+    url = `https://${url}`;
+  }
+  // Ensure we have the /api suffix if not present
+  if (!url.endsWith('/api')) {
+    url = `${url.replace(/\/$/, '')}/api`;
+  }
+  return url;
+};
+const API_BASE_URL = getApiUrl();
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<ViewType>('HOME');
