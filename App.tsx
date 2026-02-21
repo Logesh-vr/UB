@@ -795,6 +795,7 @@ const App: React.FC = () => {
                     exercise={{ ...focusedExercise, relation: 'NONE' }}
                     onUpdate={(sets) => handleSessionUpdate(focusedExercise.id, sets)}
                     initialSets={currentSessionResults[focusedExercise.id]}
+                    isLoadOutMode={isLoadOutMode}
                   />
                 </div>
                 <div className="p-4 bg-zinc-50 dark:bg-zinc-900/40 rounded-3xl border border-zinc-200 dark:border-zinc-800 space-y-4">
@@ -803,6 +804,7 @@ const App: React.FC = () => {
                     exercise={{ ...focusedExercise, name: focusedExercise.partnerName!, defaultMetric: focusedExercise.partnerMetric!, relation: 'NONE' }}
                     onUpdate={(sets) => handleSessionUpdate(`${focusedExercise.id}-partner`, sets)}
                     initialSets={currentSessionResults[`${focusedExercise.id}-partner`]}
+                    isLoadOutMode={isLoadOutMode}
                   />
                 </div>
               </div>
@@ -814,6 +816,7 @@ const App: React.FC = () => {
             exercise={selectedOrId === 'PRIMARY' ? focusedExercise : { ...focusedExercise, name: focusedExercise.partnerName!, defaultMetric: focusedExercise.partnerMetric! }}
             onUpdate={(sets) => handleSessionUpdate(selectedOrId === 'PRIMARY' ? focusedExercise.id : `${focusedExercise.id}-partner`, sets)}
             initialSets={currentSessionResults[selectedOrId === 'PRIMARY' ? focusedExercise.id : `${focusedExercise.id}-partner`]}
+            isLoadOutMode={isLoadOutMode}
           />
         )}
 

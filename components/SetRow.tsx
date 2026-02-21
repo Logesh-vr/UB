@@ -8,9 +8,10 @@ interface SetRowProps {
   updateSet: (updates: Partial<SetRecord>) => void;
   onComplete: () => void;
   autoFocus?: boolean;
+  isLoadOutMode?: boolean;
 }
 
-const SetRow: React.FC<SetRowProps> = ({ index, data, updateSet, onComplete, autoFocus }) => {
+const SetRow: React.FC<SetRowProps> = ({ index, data, updateSet, onComplete, autoFocus, isLoadOutMode = false }) => {
   const primaryInputRef = useRef<HTMLInputElement>(null);
   const dropInputRef = useRef<HTMLInputElement>(null);
   const isTimed = data.metricType === MetricType.SECS;
@@ -35,29 +36,31 @@ const SetRow: React.FC<SetRowProps> = ({ index, data, updateSet, onComplete, aut
   };
 
   return (
-    <div className={`p-5 tech-border transition-all duration-300 border-l-4 ${data.isCompleted
-      ? 'bg-green-500/5 border-green-500/30 opacity-60 grayscale'
-      : 'bg-black/20 border-green-500/20 shadow-sm'
-      }`}>
+    <div className={`p-6 glass-panel transition-all duration-300 border-l-4 ${data.isCompleted
+      ? 'opacity-60 grayscale'
+      : `border-zinc-200 dark:border-zinc-800 shadow-sm`
+      }`}
+      style={!data.isCompleted ? { borderLeftColor: `var(--accent-${isLoadOutMode ? 'amber' : 'cyan'})` } : { borderLeftColor: '#71717a' }}
+    >
       <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-3">
-          <span className="text-[9px] font-black uppercase tracking-[0.3em] text-green-500/60 mono">
-            CELL {index + 1}
+          <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
+            SET {index + 1}
           </span>
           {isTimed && (
-            <span className="text-[7px] bg-green-500/20 text-green-500 px-2 py-0.5 rounded-sm font-black uppercase tracking-widest">
+            <span className={`text-[8px] px-2 py-0.5 rounded-lg font-black uppercase tracking-widest ${isLoadOutMode ? 'bg-amber-500/10 text-amber-500' : 'bg-cyan-500/10 text-cyan-500'}`}>
               TIMED
             </span>
           )}
         </div>
         <button
           onClick={() => updateSet({ isDropSet: !data.isDropSet })}
-          className={`px-4 py-1.5 rounded-sm text-[8px] font-black uppercase transition-all tracking-widest ${data.isDropSet
-            ? 'bg-green-500 text-black shadow-[0_0_10px_rgba(34,197,94,0.4)]'
-            : 'bg-black/40 border border-green-500/20 text-green-500/60'
+          className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase transition-all tracking-widest border ${data.isDropSet
+            ? `${isLoadOutMode ? 'bg-amber-500 border-amber-500' : 'bg-zinc-900 border-zinc-900 dark:bg-white dark:border-white'} text-white dark:text-black shadow-lg`
+            : 'bg-zinc-100 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-500'
             }`}
         >
-          {data.isDropSet ? 'DROP ACTIVE' : '+ INJECT DROP'}
+          {data.isDropSet ? 'DROP ACTIVE' : '+ ADD DROP'}
         </button>
       </div>
 
@@ -66,13 +69,13 @@ const SetRow: React.FC<SetRowProps> = ({ index, data, updateSet, onComplete, aut
         <div className="grid grid-cols-12 gap-4 items-end">
           {isTimed ? (
             <div className="col-span-10">
-              <label className="block text-[7px] text-green-500/40 uppercase mb-2 font-black tracking-[0.2em]">PULSE DURATION (SECS)</label>
+              <label className="block text-[8px] text-zinc-400 dark:text-zinc-500 uppercase mb-2 font-black tracking-widest ml-1">DURATION (SECONDS)</label>
               <input
                 ref={primaryInputRef}
                 type="number"
                 min="0"
                 placeholder="0"
-                className="w-full bg-black/40 border border-green-500/20 rounded-sm py-4 px-4 text-left text-2xl font-black focus:border-green-500 outline-none text-white tracking-tighter shadow-inner"
+                className="w-full bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-100 dark:border-zinc-800 rounded-2xl py-4 px-5 text-left text-2xl font-black focus:ring-2 ring-zinc-500/10 outline-none text-zinc-900 dark:text-white tracking-tighter"
                 value={data.metricValue}
                 onChange={(e) => handleNumberChange('metricValue', e.target.value)}
               />
@@ -80,25 +83,25 @@ const SetRow: React.FC<SetRowProps> = ({ index, data, updateSet, onComplete, aut
           ) : (
             <>
               <div className="col-span-4">
-                <label className="block text-[7px] text-green-500/40 uppercase mb-2 font-black tracking-[0.2em]">STRIKES</label>
+                <label className="block text-[8px] text-zinc-400 dark:text-zinc-500 uppercase mb-2 font-black tracking-widest ml-1">REPS</label>
                 <input
                   ref={primaryInputRef}
                   type="number"
                   min="0"
                   placeholder="0"
-                  className="w-full bg-black/40 border border-green-500/20 rounded-sm py-4 px-2 text-center text-2xl font-black focus:border-green-500 outline-none text-white tracking-tighter shadow-inner"
+                  className="w-full bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-100 dark:border-zinc-800 rounded-2xl py-4 px-2 text-center text-2xl font-black focus:ring-2 ring-zinc-500/10 outline-none text-zinc-900 dark:text-white tracking-tighter"
                   value={data.reps}
                   onChange={(e) => handleNumberChange('reps', e.target.value)}
                 />
               </div>
               <div className="col-span-6">
-                <label className="block text-[7px] text-green-500/40 uppercase mb-2 font-black tracking-[0.2em]">LOAD ({data.metricType})</label>
+                <label className="block text-[8px] text-zinc-400 dark:text-zinc-500 uppercase mb-2 font-black tracking-widest ml-1">WEIGHT ({data.metricType})</label>
                 <input
                   type="number"
                   min="0"
                   placeholder="0"
                   step="0.1"
-                  className="w-full bg-black/40 border border-green-500/20 rounded-sm py-4 px-2 text-center text-2xl font-black focus:border-green-500 outline-none text-white tracking-tighter shadow-inner"
+                  className="w-full bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-100 dark:border-zinc-800 rounded-2xl py-4 px-2 text-center text-2xl font-black focus:ring-2 ring-zinc-500/10 outline-none text-zinc-900 dark:text-white tracking-tighter"
                   value={data.metricValue}
                   onChange={(e) => handleNumberChange('metricValue', e.target.value)}
                 />
@@ -110,9 +113,9 @@ const SetRow: React.FC<SetRowProps> = ({ index, data, updateSet, onComplete, aut
             {!data.isDropSet && (
               <button
                 onClick={onComplete}
-                className={`w-14 h-14 tech-border border-2 flex items-center justify-center transition-all active:scale-90 ${data.isCompleted
-                  ? 'bg-green-500 border-green-500 text-black shadow-[0_0_15px_rgba(34,197,94,0.4)]'
-                  : 'bg-black/40 border-green-500/20 text-green-500/40'
+                className={`w-14 h-14 rounded-2xl border-2 flex items-center justify-center transition-all active:scale-90 ${data.isCompleted
+                  ? `${isLoadOutMode ? 'bg-amber-500 border-amber-500' : 'bg-zinc-900 dark:bg-white border-zinc-900 dark:border-white'} text-white dark:text-black shadow-xl`
+                  : 'bg-zinc-50 dark:bg-zinc-900 border-zinc-100 dark:border-zinc-800 text-zinc-300 dark:text-zinc-700'
                   }`}
               >
                 {data.isCompleted ? (
@@ -129,21 +132,21 @@ const SetRow: React.FC<SetRowProps> = ({ index, data, updateSet, onComplete, aut
 
         {/* Drop Set Inputs Row */}
         {data.isDropSet && (
-          <div className="animate-in slide-in-from-top-2 duration-300 pt-5 mt-2 border-t border-dashed border-green-500/20">
+          <div className="animate-in slide-in-from-top-2 duration-300 pt-5 mt-2 border-t border-dashed border-zinc-200 dark:border-zinc-800">
             <div className="grid grid-cols-12 gap-4 items-end">
               <div className="col-span-1 flex flex-col items-center justify-center pb-4">
-                <div className="w-1 h-8 bg-green-500 rounded-full shadow-[0_0_10px_rgba(34,197,94,0.5)]"></div>
+                <div className={`w-1 h-8 rounded-full ${isLoadOutMode ? 'bg-amber-500' : 'bg-cyan-500 shadow-lg'}`}></div>
               </div>
 
               {isTimed ? (
                 <div className="col-span-9">
-                  <label className="block text-[7px] text-green-500/60 uppercase mb-2 font-black tracking-[0.2em] italic">RESONANCE DURATION</label>
+                  <label className="block text-[8px] text-zinc-400 uppercase mb-2 font-black tracking-widest ml-1 italic">DROP SECONDS</label>
                   <input
                     ref={dropInputRef}
                     type="number"
                     min="0"
                     placeholder="0"
-                    className="w-full bg-green-500/5 border border-green-500/30 rounded-sm py-4 px-4 text-left text-2xl font-black focus:border-green-500 outline-none text-white tracking-tighter"
+                    className="w-full bg-zinc-50 dark:bg-zinc-900/40 border border-zinc-100 dark:border-zinc-800 rounded-2xl py-4 px-5 text-left text-2xl font-black outline-none text-zinc-900 dark:text-white tracking-tighter"
                     value={data.dropMetricValue || ''}
                     onChange={(e) => handleNumberChange('dropMetricValue', e.target.value)}
                   />
@@ -151,25 +154,25 @@ const SetRow: React.FC<SetRowProps> = ({ index, data, updateSet, onComplete, aut
               ) : (
                 <>
                   <div className="col-span-4">
-                    <label className="block text-[7px] text-green-500/60 uppercase mb-2 font-black tracking-[0.2em] italic">DROP STRIKES</label>
+                    <label className="block text-[8px] text-zinc-400 uppercase mb-2 font-black tracking-widest ml-1 italic">DROP REPS</label>
                     <input
                       ref={dropInputRef}
                       type="number"
                       min="0"
                       placeholder="0"
-                      className="w-full bg-green-500/5 border border-green-500/30 rounded-sm py-4 px-2 text-center text-2xl font-black focus:border-green-500 outline-none text-white tracking-tighter"
+                      className="w-full bg-zinc-50 dark:bg-zinc-900/40 border border-zinc-100 dark:border-zinc-800 rounded-2xl py-4 px-2 text-center text-2xl font-black outline-none text-zinc-900 dark:text-white tracking-tighter"
                       value={data.dropReps || ''}
                       onChange={(e) => handleNumberChange('dropReps', e.target.value)}
                     />
                   </div>
                   <div className="col-span-5">
-                    <label className="block text-[7px] text-green-500/60 uppercase mb-2 font-black tracking-[0.2em] italic">DROP LOAD</label>
+                    <label className="block text-[8px] text-zinc-400 uppercase mb-2 font-black tracking-widest ml-1 italic">DROP WEIGHT</label>
                     <input
                       type="number"
                       min="0"
                       placeholder="0"
                       step="0.1"
-                      className="w-full bg-green-500/5 border border-green-500/30 rounded-sm py-4 px-2 text-center text-2xl font-black focus:border-green-500 outline-none text-white tracking-tighter"
+                      className="w-full bg-zinc-50 dark:bg-zinc-900/40 border border-zinc-100 dark:border-zinc-800 rounded-2xl py-4 px-2 text-center text-2xl font-black outline-none text-zinc-900 dark:text-white tracking-tighter"
                       value={data.dropMetricValue || ''}
                       onChange={(e) => handleNumberChange('dropMetricValue', e.target.value)}
                     />
@@ -180,9 +183,9 @@ const SetRow: React.FC<SetRowProps> = ({ index, data, updateSet, onComplete, aut
               <div className="col-span-2 flex justify-end pb-[1px]">
                 <button
                   onClick={onComplete}
-                  className={`w-14 h-14 tech-border border-2 flex items-center justify-center transition-all active:scale-90 ${data.isCompleted
-                    ? 'bg-green-500 border-green-500 text-black shadow-[0_0_15px_rgba(34,197,94,0.4)]'
-                    : 'bg-black/40 border-green-500/20 text-green-500/40'
+                  className={`w-14 h-14 rounded-2xl border-2 flex items-center justify-center transition-all active:scale-90 ${data.isCompleted
+                    ? `${isLoadOutMode ? 'bg-amber-500 border-amber-500' : 'bg-zinc-900 dark:bg-white border-zinc-900 dark:border-white'} text-white dark:text-black shadow-xl`
+                    : 'bg-zinc-50 dark:bg-zinc-900 border-zinc-100 dark:border-zinc-800 text-zinc-300 dark:text-zinc-700'
                     }`}
                 >
                   {data.isCompleted ? (

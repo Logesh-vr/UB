@@ -7,9 +7,10 @@ interface ExerciseLoggerProps {
   exercise: Exercise;
   initialSets?: SetRecord[];
   onUpdate?: (sets: SetRecord[]) => void;
+  isLoadOutMode?: boolean;
 }
 
-const ExerciseLogger: React.FC<ExerciseLoggerProps> = ({ exercise, initialSets, onUpdate }) => {
+const ExerciseLogger: React.FC<ExerciseLoggerProps> = ({ exercise, initialSets, onUpdate, isLoadOutMode = false }) => {
   const [sets, setSets] = useState<SetRecord[]>(
     initialSets || Array.from({ length: exercise.targetSets || 1 }, (_, i) => ({
       id: Math.random().toString(36).substr(2, 9),
@@ -64,6 +65,8 @@ const ExerciseLogger: React.FC<ExerciseLoggerProps> = ({ exercise, initialSets, 
     onUpdate?.(nextSets);
   };
 
+  const accentBgClass = isLoadOutMode ? 'bg-amber-500' : 'bg-cyan-500';
+
   return (
     <div className="space-y-4">
       {sets.map((set, idx) => (
@@ -74,20 +77,21 @@ const ExerciseLogger: React.FC<ExerciseLoggerProps> = ({ exercise, initialSets, 
           updateSet={(updates) => updateSet(set.id, updates)}
           onComplete={() => completeSet(idx)}
           autoFocus={idx === activeSetIndex}
+          isLoadOutMode={isLoadOutMode}
         />
       ))}
 
       <div className="flex gap-2">
         <button
           onClick={addSet}
-          className="flex-1 tech-border bg-green-500 text-black py-4 font-black uppercase tracking-widest text-[10px] shadow-[0_0_15px_rgba(34,197,94,0.3)] hover:bg-green-400 transition-all active:scale-[0.98]"
+          className={`flex-1 rounded-2xl ${accentBgClass} text-white dark:text-black py-4 font-black uppercase tracking-widest text-[10px] shadow-lg active:scale-[0.98] transition-all`}
         >
-          Inject Set
+          Add Set
         </button>
         {sets.length > 1 && (
           <button
             onClick={removeSet}
-            className="px-6 tech-border bg-black/40 border border-green-500/20 text-green-500 hover:text-red-500 transition-all active:scale-[0.98]"
+            className="px-6 rounded-2xl bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-500 hover:text-red-500 transition-all active:scale-[0.98]"
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M5 10a1 1 0 011-1h8a1 1 0 110 2H6a1 1 0 01-1-1z" clipRule="evenodd" />
