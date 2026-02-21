@@ -11,7 +11,7 @@ interface ExerciseLoggerProps {
 
 const ExerciseLogger: React.FC<ExerciseLoggerProps> = ({ exercise, initialSets, onUpdate }) => {
   const [sets, setSets] = useState<SetRecord[]>(
-    initialSets || Array.from({ length: exercise.targetSets }, (_, i) => ({
+    initialSets || Array.from({ length: exercise.targetSets || 1 }, (_, i) => ({
       id: Math.random().toString(36).substr(2, 9),
       reps: '',
       metricValue: '',

@@ -34,7 +34,7 @@ export interface SetRecord {
 export interface Exercise {
   id: string;
   name: string;
-  targetSets: number;
+  targetSets: number | null;
   defaultMetric: MetricType;
   relation: ExerciseRelation;
   partnerName?: string;

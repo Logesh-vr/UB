@@ -350,7 +350,7 @@ const App: React.FC = () => {
         id: Math.random().toString(36).substr(2, 9),
         name: 'New Exercise',
         relation: 'NONE',
-        targetSets: 3,
+        targetSets: null,
         defaultMetric: MetricType.KG
       }];
       next[dayIdx] = day;
@@ -520,7 +520,7 @@ const App: React.FC = () => {
                       {ex.relation === 'OR' && <span className="text-[10px] text-amber-500 font-black italic">/ {ex.partnerName}</span>}
                     </div>
                     <div className="flex gap-2 items-center mt-1">
-                      <span className="text-[10px] text-zinc-400 uppercase font-black tracking-widest">{ex.targetSets} Sets • {ex.relation !== 'NONE' ? (ex.relation === 'AND' ? 'Superset' : 'Alternative') : ex.defaultMetric}</span>
+                      <span className="text-[10px] text-zinc-400 uppercase font-black tracking-widest">{ex.targetSets || 0} Sets • {ex.relation !== 'NONE' ? (ex.relation === 'AND' ? 'Superset' : 'Alternative') : ex.defaultMetric}</span>
                     </div>
                   </div>
                 </div>
@@ -589,8 +589,8 @@ const App: React.FC = () => {
                       <span className="text-[8px] font-black uppercase text-zinc-500 tracking-widest">Global Sets</span>
                       <input
                         type="number" min="1"
-                        value={ex.targetSets}
-                        onChange={(e) => updateExerciseProperty(selectedEditDayIdx, ex.id, { targetSets: parseInt(e.target.value) || 3 })}
+                        value={ex.targetSets ?? ''}
+                        onChange={(e) => updateExerciseProperty(selectedEditDayIdx, ex.id, { targetSets: e.target.value === '' ? null : parseInt(e.target.value) })}
                         className="w-full bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg py-1.5 text-center font-bold h-[32px] text-zinc-900 dark:text-white"
                       />
                     </div>
