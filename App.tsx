@@ -603,15 +603,9 @@ const App: React.FC = () => {
                 <div className="space-y-2">
                   <span className="text-[8px] font-black uppercase text-zinc-500 tracking-widest">Slot Type</span>
                   <div className="flex bg-zinc-200 dark:bg-zinc-800 p-0.5 rounded-lg border border-zinc-300 dark:border-zinc-700">
-                    <button onClick={() => updateExerciseProperty(selectedEditDayIdx, ex.id, { relation: 'NONE' })} className={`flex-1 py-1.5 text-[9px] font-black uppercase rounded ${ex.relation === 'NONE' ? 'bg-white dark:bg-zinc-700 shadow-sm text-zinc-900 dark:text-white' : 'text-zinc-500'}`}>Single</button>
-                    <button onClick={() => updateExerciseProperty(selectedEditDayIdx, ex.id, { relation: 'AND', partnerName: ex.partnerName || 'Secondary' })} className={`flex-1 py-1.5 text-[9px] font-black uppercase rounded ${ex.relation === 'AND' ? 'bg-purple-600 text-white shadow-sm' : 'text-zinc-500'}`}>AND</button>
-                    <button onClick={() => updateExerciseProperty(selectedEditDayIdx, ex.id, { relation: 'OR', partnerName: ex.partnerName || 'Alternative' })} className={`flex-1 py-1.5 text-[9px] font-black uppercase rounded ${ex.relation === 'OR' ? 'bg-amber-600 text-white shadow-sm' : 'text-zinc-500'}`}>OR</button>
-                  </div>
-                  <div className="px-2 py-1 bg-zinc-100 dark:bg-zinc-900/60 rounded-lg">
-                    <p className="text-[7px] font-bold text-zinc-500 dark:text-zinc-400 uppercase leading-relaxed">
-                      <span className="text-purple-500">AND (AND):</span> Superset - Perform both movements back-to-back.<br />
-                      <span className="text-amber-500">OR (OR):</span> Alternative - Choose one of these movements for the session.
-                    </p>
+                    <button onClick={() => updateExerciseProperty(selectedEditDayIdx, ex.id, { relation: 'NONE' })} className={`flex-1 py-1.5 text-[8px] font-black uppercase rounded ${ex.relation === 'NONE' ? 'bg-white dark:bg-zinc-700 shadow-sm text-zinc-900 dark:text-white' : 'text-zinc-500'}`}>Single</button>
+                    <button onClick={() => updateExerciseProperty(selectedEditDayIdx, ex.id, { relation: 'AND', partnerName: ex.partnerName || 'Secondary' })} className={`flex-1 py-1.5 text-[8px] font-black uppercase rounded ${ex.relation === 'AND' ? 'bg-purple-600 text-white shadow-sm' : 'text-zinc-500'}`}>Superset (AND)</button>
+                    <button onClick={() => updateExerciseProperty(selectedEditDayIdx, ex.id, { relation: 'OR', partnerName: ex.partnerName || 'Alternative' })} className={`flex-1 py-1.5 text-[8px] font-black uppercase rounded ${ex.relation === 'OR' ? 'bg-amber-600 text-white shadow-sm' : 'text-zinc-500'}`}>Alternative (OR)</button>
                   </div>
                 </div>
                 {ex.relation !== 'NONE' && (
