@@ -544,7 +544,7 @@ const App: React.FC = () => {
 
   const renderPlanEditor = () => (
     <div className="p-6 pt-0 space-y-6 animate-in fade-in slide-in-from-right-10 duration-500 pb-32">
-      <Header title="Routine Matrix" />
+      <Header title="Routine Plan" />
       <div className="flex overflow-x-auto gap-2 pb-2 no-scrollbar">
         {SHORT_DAYS.map((day, idx) => (
           <button
@@ -940,7 +940,7 @@ const App: React.FC = () => {
             <nav className="space-y-2">
               <SideButton active={currentView === 'HOME'} onClick={() => navigateTo('HOME')} icon={<HomeIcon />} label="Dashboard" />
               <SideButton active={currentView === 'LEADERBOARD'} onClick={() => navigateTo('LEADERBOARD')} icon={<LeaderboardIcon />} label="Leaderboard" />
-              <SideButton active={currentView === 'PLAN_EDITOR'} onClick={() => navigateTo('PLAN_EDITOR')} icon={<PlanIcon />} label="Matrix" />
+              <SideButton active={currentView === 'PLAN_EDITOR'} onClick={() => navigateTo('PLAN_EDITOR')} icon={<PlanIcon />} label="Routine" />
               <SideButton active={currentView === 'STATS'} onClick={() => navigateTo('STATS')} icon={<StatsIcon />} label="Signal" />
               <SideButton active={currentView === 'HISTORY'} onClick={() => navigateTo('HISTORY')} icon={<HistoryIcon />} label="Archive" />
             </nav>
