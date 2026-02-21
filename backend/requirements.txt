@@ -10,3 +10,4 @@ argon2-cffi
 python-multipart
 requests
 pydantic-settings
+gunicorn
