@@ -48,9 +48,9 @@ DATABASE_URL=postgresql://user:pass@localhost:5432/ub_gym
 JWT_SECRET=your_super_secret_key
 ```
 
-Run the server:
+Run the server (Production):
 ```bash
-uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+gunicorn -w 4 -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:$PORT
 ```
 
 ### 2. Frontend Setup
