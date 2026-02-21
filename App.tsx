@@ -423,12 +423,23 @@ const App: React.FC = () => {
     <header className="sticky top-0 z-[60] flex items-center justify-between mb-8 px-5 py-4 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-xl border-b border-zinc-200 dark:border-zinc-800 -mx-6">
       <div className="flex items-center gap-3">
         {showLogo ? (
-          <button
-            onClick={() => setIsSidebarOpen(true)}
-            className={`w-10 h-10 rounded-xl flex items-center justify-center overflow-hidden active:scale-95 transition-transform bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800`}
-          >
-            <img src="/logo.png" alt="Logo" className="w-8 h-8 object-contain" />
-          </button>
+          <>
+            <button
+              onClick={() => setIsSidebarOpen(true)}
+              className={`w-10 h-10 rounded-xl flex items-center justify-center overflow-hidden active:scale-95 transition-transform bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800`}
+            >
+              <img src="/logo.png" alt="Logo" className="w-8 h-8 object-contain" />
+            </button>
+            <button
+              onClick={handleLogout}
+              className="w-10 h-10 rounded-xl bg-red-500/10 text-red-500 flex items-center justify-center active:scale-95 transition-transform border border-red-500/20"
+              title="Quick Logout"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+            </button>
+          </>
         ) : (
           <button
             onClick={() => setCurrentView('HOME')}
@@ -957,7 +968,7 @@ const App: React.FC = () => {
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                   </svg>
-                  <span className="text-[10px] font-black uppercase tracking-widest">Terminate Session</span>
+                  <span className="text-[10px] font-black uppercase tracking-widest">Session Logout</span>
                 </div>
               </button>
               <button onClick={toggleLoadOut} className={`w-full flex items-center justify-between p-4 rounded-3xl border transition-all active:scale-95 ${isLoadOutMode ? 'border-amber-500 bg-amber-500/10 text-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.2)]' : 'border-zinc-200 dark:border-zinc-800 text-zinc-500 bg-white dark:bg-zinc-800'}`}>
