@@ -32,7 +32,15 @@ const SetRow: React.FC<SetRowProps> = ({ index, data, updateSet, onComplete, aut
   const handleNumberChange = (field: keyof SetRecord, value: string) => {
     // Prevent negative numbers
     if (parseFloat(value) < 0) return;
-    updateSet({ [field]: value });
+
+    // Strip leading zeros but preserve empty string or single 0
+    let cleanValue = value;
+    if (cleanValue.length > 1 && cleanValue.startsWith('0') && !cleanValue.startsWith('0.')) {
+      cleanValue = cleanValue.replace(/^0+/, '');
+      if (cleanValue === '') cleanValue = '0'; // If they typed "00", it becomes "0"
+    }
+
+    updateSet({ [field]: cleanValue });
   };
 
   return (
@@ -68,17 +76,39 @@ const SetRow: React.FC<SetRowProps> = ({ index, data, updateSet, onComplete, aut
         {/* Main Set Inputs */}
         <div className="grid grid-cols-12 gap-4 items-end">
           {isTimed ? (
-            <div className="col-span-10">
-              <label className="block text-[8px] text-zinc-400 dark:text-zinc-500 uppercase mb-2 font-black tracking-widest ml-1">DURATION (SECONDS)</label>
-              <input
-                ref={primaryInputRef}
-                type="number"
-                min="0"
-                placeholder="0"
-                className="w-full bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-100 dark:border-zinc-800 rounded-2xl py-4 px-5 text-left text-2xl font-black focus:ring-2 ring-zinc-500/10 outline-none text-zinc-900 dark:text-white tracking-tighter"
-                value={data.metricValue}
-                onChange={(e) => handleNumberChange('metricValue', e.target.value)}
-              />
+            <div className="col-span-10 grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="block text-[8px] text-zinc-400 dark:text-zinc-500 uppercase mb-2 font-black tracking-widest ml-1">MINUTES</label>
+                <input
+                  ref={primaryInputRef}
+                  type="number"
+                  min="0"
+                  placeholder="0"
+                  className="w-full bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-100 dark:border-zinc-800 rounded-2xl py-4 px-2 text-center text-2xl font-black focus:ring-2 ring-zinc-500/10 outline-none text-zinc-900 dark:text-white tracking-tighter"
+                  value={Math.floor(parseInt(data.metricValue || '0') / 60) || ''}
+                  onChange={(e) => {
+                    const mins = parseInt(e.target.value || '0');
+                    const secs = parseInt(data.metricValue || '0') % 60;
+                    handleNumberChange('metricValue', (mins * 60 + secs).toString());
+                  }}
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="block text-[8px] text-zinc-400 dark:text-zinc-500 uppercase mb-2 font-black tracking-widest ml-1">SECONDS</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="59"
+                  placeholder="0"
+                  className="w-full bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-100 dark:border-zinc-800 rounded-2xl py-4 px-2 text-center text-2xl font-black focus:ring-2 ring-zinc-500/10 outline-none text-zinc-900 dark:text-white tracking-tighter"
+                  value={parseInt(data.metricValue || '0') % 60 || ''}
+                  onChange={(e) => {
+                    const mins = Math.floor(parseInt(data.metricValue || '0') / 60);
+                    const secs = Math.min(59, parseInt(e.target.value || '0'));
+                    handleNumberChange('metricValue', (mins * 60 + secs).toString());
+                  }}
+                />
+              </div>
             </div>
           ) : (
             <>
@@ -139,17 +169,39 @@ const SetRow: React.FC<SetRowProps> = ({ index, data, updateSet, onComplete, aut
               </div>
 
               {isTimed ? (
-                <div className="col-span-9">
-                  <label className="block text-[8px] text-zinc-400 uppercase mb-2 font-black tracking-widest ml-1 italic">DROP SECONDS</label>
-                  <input
-                    ref={dropInputRef}
-                    type="number"
-                    min="0"
-                    placeholder="0"
-                    className="w-full bg-zinc-50 dark:bg-zinc-900/40 border border-zinc-100 dark:border-zinc-800 rounded-2xl py-4 px-5 text-left text-2xl font-black outline-none text-zinc-900 dark:text-white tracking-tighter"
-                    value={data.dropMetricValue || ''}
-                    onChange={(e) => handleNumberChange('dropMetricValue', e.target.value)}
-                  />
+                <div className="col-span-9 grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="block text-[8px] text-zinc-400 uppercase mb-2 font-black tracking-widest ml-1 italic">DROP MINS</label>
+                    <input
+                      ref={dropInputRef}
+                      type="number"
+                      min="0"
+                      placeholder="0"
+                      className="w-full bg-zinc-50 dark:bg-zinc-900/40 border border-zinc-100 dark:border-zinc-800 rounded-2xl py-4 px-2 text-center text-2xl font-black outline-none text-zinc-900 dark:text-white tracking-tighter"
+                      value={Math.floor(parseInt(data.dropMetricValue || '0') / 60) || ''}
+                      onChange={(e) => {
+                        const mins = parseInt(e.target.value || '0');
+                        const secs = parseInt(data.dropMetricValue || '0') % 60;
+                        handleNumberChange('dropMetricValue', (mins * 60 + secs).toString());
+                      }}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="block text-[8px] text-zinc-400 uppercase mb-2 font-black tracking-widest ml-1 italic">DROP SECS</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="59"
+                      placeholder="0"
+                      className="w-full bg-zinc-50 dark:bg-zinc-900/40 border border-zinc-100 dark:border-zinc-800 rounded-2xl py-4 px-2 text-center text-2xl font-black outline-none text-zinc-900 dark:text-white tracking-tighter"
+                      value={parseInt(data.dropMetricValue || '0') % 60 || ''}
+                      onChange={(e) => {
+                        const mins = Math.floor(parseInt(data.dropMetricValue || '0') / 60);
+                        const secs = Math.min(59, parseInt(e.target.value || '0'));
+                        handleNumberChange('dropMetricValue', (mins * 60 + secs).toString());
+                      }}
+                    />
+                  </div>
                 </div>
               ) : (
                 <>

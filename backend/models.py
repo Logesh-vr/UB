@@ -12,6 +12,11 @@ class User(Base):
     hashed_password = Column(String)
     is_load_out = Column(Boolean, default=False)
     theme = Column(String, default="dark")
+    height = Column(String, nullable=True)
+    weight = Column(String, nullable=True)
+    age = Column(Integer, nullable=True)
+    gender = Column(String, nullable=True)
+    fitness_goal = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     routines = relationship("Routine", back_populates="owner")

@@ -16,11 +16,10 @@ const MetricToggle: React.FC<MetricToggleProps> = ({ value, onChange }) => {
         <button
           key={option}
           onClick={() => onChange(option)}
-          className={`flex-1 py-1 text-[9px] font-bold uppercase tracking-wider transition-all rounded-md ${
-            value === option 
-              ? 'bg-cyan-500 text-black shadow-sm' 
-              : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200'
-          }`}
+          className={`flex-1 py-1 text-[9px] font-bold uppercase tracking-wider transition-all rounded-md ${value === option
+            ? 'bg-cyan-500 text-black shadow-sm'
+            : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200'
+            }`}
         >
           {option === MetricType.PLATES ? 'PLT' : option}
         </button>

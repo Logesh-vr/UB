@@ -61,7 +61,7 @@ export interface LeaderboardEntry {
   bench: number;
   squat: number;
   deadlift: number;
-  total: number;
+  bodyweight_ratio: number;
 }
 
 export type ViewType = 'HOME' | 'WORKOUT' | 'HISTORY' | 'STATS' | 'PLAN_EDITOR' | 'EXERCISE_DETAIL' | 'LOAD_OUT' | 'PROFILE' | 'LEADERBOARD';
@@ -83,13 +83,9 @@ export interface WorkoutLog {
 }
 
 export interface UserProfile {
-  id: string;
-  name: string;
-  email: string;
-  picture: string;
-  age?: string;
-  weight?: string;
-  height?: string;
-  goal?: string;
-  experience?: string;
+  height: string | null;
+  weight: string | null;
+  age: number | null;
+  gender: string | null;
+  fitness_goal: string | null;
 }

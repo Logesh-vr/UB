@@ -66,12 +66,19 @@ class UserSettingsSchema(BaseModel):
     is_load_out: bool
     theme: Optional[str] = "dark"
 
+class UserProfileSchema(BaseModel):
+    height: Optional[str] = None
+    weight: Optional[str] = None
+    age: Optional[int] = None
+    gender: Optional[str] = None
+    fitness_goal: Optional[str] = None
+
 class LeaderboardEntry(BaseModel):
     username: str
     bench: float
     squat: float
     deadlift: float
-    total: float
+    bodyweight_ratio: float
 
 class Token(BaseModel):
     access_token: str
@@ -219,6 +226,59 @@ async def save_history(history: WorkoutHistoryCreate, current_user: models.User 
         is_load_out=history.isLoadOut
     )
     db.add(new_history)
+    
+    # Check for PR updates
+    db_prs = db.query(models.PersonalRecord).filter(models.PersonalRecord.user_id == current_user.id).first()
+    current_prs = db_prs.data if db_prs else {"bench": "0", "squat": "0", "deadlift": "0"}
+    pr_updated = False
+
+    def get_max_weight(sets):
+        max_w = 0.0
+        for s in sets:
+            if s.get("isCompleted", False):
+                try:
+                    w = float(s.get("metricValue", "0"))
+                    if w > max_w:
+                        max_w = w
+                except (ValueError, TypeError):
+                    pass
+        return max_w
+
+    for ex in history.exercises:
+        ex_name = ex.get("exerciseName", "").lower()
+        sets = ex.get("sets", [])
+        
+        # Check Bench
+        if "bench press" in ex_name or ex_name == "bench":
+            max_w = get_max_weight(sets)
+            if max_w > float(current_prs.get("bench", "0")):
+                current_prs["bench"] = str(max_w)
+                pr_updated = True
+                
+        # Check Squat
+        if "squat" in ex_name:
+            max_w = get_max_weight(sets)
+            if max_w > float(current_prs.get("squat", "0")):
+                current_prs["squat"] = str(max_w)
+                pr_updated = True
+                
+        # Check Deadlift
+        if "deadlift" in ex_name:
+            max_w = get_max_weight(sets)
+            if max_w > float(current_prs.get("deadlift", "0")):
+                current_prs["deadlift"] = str(max_w)
+                pr_updated = True
+
+    if pr_updated:
+        if db_prs:
+            # SQLAlchemy JSON columns sometimes need this to detect changes
+            from sqlalchemy.orm.attributes import flag_modified
+            db_prs.data = current_prs
+            flag_modified(db_prs, "data")
+        else:
+            new_prs = models.PersonalRecord(user_id=current_user.id, data=current_prs)
+            db.add(new_prs)
+
     db.commit()
     return {"status": "success"}
 
@@ -231,6 +291,26 @@ async def save_settings(settings: UserSettingsSchema, current_user: models.User 
     current_user.is_load_out = settings.is_load_out
     if settings.theme:
         current_user.theme = settings.theme
+    db.commit()
+    return {"status": "success"}
+
+@app.get("/api/profile", response_model=UserProfileSchema)
+async def get_profile(current_user: models.User = Depends(get_current_user)):
+    return {
+        "height": current_user.height,
+        "weight": current_user.weight,
+        "age": current_user.age,
+        "gender": current_user.gender,
+        "fitness_goal": current_user.fitness_goal
+    }
+
+@app.post("/api/profile")
+async def save_profile(profile: UserProfileSchema, current_user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    current_user.height = profile.height
+    current_user.weight = profile.weight
+    current_user.age = profile.age
+    current_user.gender = profile.gender
+    current_user.fitness_goal = profile.fitness_goal
     db.commit()
     return {"status": "success"}
 
@@ -253,16 +333,21 @@ async def get_leaderboard(db: Session = Depends(get_db)):
         bench = safe_float(pr_data.get('bench', 0))
         squat = safe_float(pr_data.get('squat', 0))
         deadlift = safe_float(pr_data.get('deadlift', 0))
-        total = bench + squat + deadlift
+        
+        bw = safe_float(user.weight)
+        if bw > 0:
+            bw_ratio = ((bench + squat + deadlift) / 3) / bw
+        else:
+            bw_ratio = 0.0
         
         leaderboard.append({
             "username": user.username or (user.email.split('@')[0] if user.email else "Anonymous"),
             "bench": bench,
             "squat": squat,
             "deadlift": deadlift,
-            "total": total
+            "bodyweight_ratio": round(bw_ratio, 2)
         })
     
-    # Sort by total descending
-    leaderboard.sort(key=lambda x: x['total'], reverse=True)
+    # Sort by bodyweight ratio descending
+    leaderboard.sort(key=lambda x: x['bodyweight_ratio'], reverse=True)
     return leaderboard

@@ -1,6 +1,5 @@
 # Common
 node_modules/
-dist-ssr/
 *.local
 .DS_Store
 

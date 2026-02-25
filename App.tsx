@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { ViewType, WorkoutSession, Exercise, PersonalRecords, MetricType, ExerciseRelation, MuscleGroup, WorkoutLog, LeaderboardEntry } from './types';
+import { ViewType, WorkoutSession, Exercise, PersonalRecords, MetricType, ExerciseRelation, MuscleGroup, WorkoutLog, LeaderboardEntry, UserProfile } from './types';
 import { PPL_ROUTINE } from './constants';
 import ExerciseLogger from './components/ExerciseLogger';
 import MetricToggle from './components/MetricToggle';
@@ -12,6 +12,9 @@ const THEME_STORAGE_KEY = 'ub_theme';
 const DELOAD_STORAGE_KEY = 'ub_deload_mode';
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const SHORT_DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+const ACTIVE_WORKOUT_KEY = 'ub_active_workout';
+const SESSION_RESULTS_KEY = 'ub_session_results';
+const VIEW_STORAGE_KEY = 'ub_current_view';
 // Robust URL resolution for environment variables
 const getApiUrl = () => {
   let url = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
@@ -31,6 +34,7 @@ const App: React.FC = () => {
   const [activeWorkout, setActiveWorkout] = useState<WorkoutSession | null>(null);
   const [focusedExercise, setFocusedExercise] = useState<Exercise | null>(null);
   const [userRoutine, setUserRoutine] = useState<WorkoutSession[]>([]);
+  const [draftRoutine, setDraftRoutine] = useState<WorkoutSession[]>([]);
   const [prs, setPrs] = useState<PersonalRecords>({ bench: '0', squat: '0', deadlift: '0' });
   const [token, setToken] = useState<string | null>(localStorage.getItem('ub_auth_token'));
 
@@ -43,10 +47,28 @@ const App: React.FC = () => {
 
   const [selectedOrId, setSelectedOrId] = useState<'PRIMARY' | 'PARTNER'>('PRIMARY');
   const [workoutHistory, setWorkoutHistory] = useState<WorkoutLog[]>([]);
+  const [isLoggerOpen, setIsLoggerOpen] = useState(false);
   const [currentSessionResults, setCurrentSessionResults] = useState<Record<string, any[]>>({});
   const [hasSynced, setHasSynced] = useState(false);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
-  const [leaderboardSortField, setLeaderboardSortField] = useState<'total' | 'bench' | 'squat' | 'deadlift'>('total');
+  const [leaderboardSortField, setLeaderboardSortField] = useState<'bodyweight_ratio' | 'bench' | 'squat' | 'deadlift'>('bodyweight_ratio');
+  const [username, setUsername] = useState<string>('');
+  const [userProfile, setUserProfile] = useState<UserProfile>({
+    height: null,
+    weight: null,
+    age: null,
+    gender: null,
+    fitness_goal: null
+  });
+
+  useEffect(() => {
+    if (token) {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        setUsername(payload.sub || '');
+      } catch (e) { }
+    }
+  }, [token]);
 
   // Storage keys
   const HISTORY_STORAGE_KEY = 'ub_workout_history';
@@ -165,16 +187,21 @@ const App: React.FC = () => {
     setIsLoadOutMode(false);
     setHasSynced(false);
     setCurrentView('HOME');
+    setUserProfile({ height: null, weight: null, age: null, gender: null, fitness_goal: null });
+    localStorage.removeItem(ACTIVE_WORKOUT_KEY);
+    localStorage.removeItem(SESSION_RESULTS_KEY);
+    localStorage.removeItem(VIEW_STORAGE_KEY);
   };
 
   const navigateTo = (view: ViewType) => {
     if (view === 'LEADERBOARD') fetchLeaderboard();
-    setCurrentView(view);
-    setIsSidebarOpen(false);
     if (view === 'PLAN_EDITOR') {
       const today = new Date().getDay();
       setSelectedEditDayIdx(today === 0 ? 0 : today - 1);
+      setDraftRoutine(JSON.parse(JSON.stringify(userRoutine)));
     }
+    setCurrentView(view);
+    setIsSidebarOpen(false);
   };
 
   const initializeRoutine = (data: WorkoutSession[]): WorkoutSession[] => {
@@ -213,12 +240,21 @@ const App: React.FC = () => {
       const savedPrs = localStorage.getItem(PR_STORAGE_KEY);
       if (savedPrs) try { setPrs(JSON.parse(savedPrs)); } catch (e) { }
 
+      const savedActiveWorkout = localStorage.getItem(ACTIVE_WORKOUT_KEY);
+      if (savedActiveWorkout) try { setActiveWorkout(JSON.parse(savedActiveWorkout)); } catch (e) { }
+
+      const savedResults = localStorage.getItem(SESSION_RESULTS_KEY);
+      if (savedResults) try { setCurrentSessionResults(JSON.parse(savedResults)); } catch (e) { }
+
+      const savedView = localStorage.getItem(VIEW_STORAGE_KEY);
+      if (savedView) try { setCurrentView(savedView as ViewType); } catch (e) { }
+
       const savedHistory = localStorage.getItem(HISTORY_STORAGE_KEY);
       if (savedHistory) try { setWorkoutHistory(JSON.parse(savedHistory)); } catch (e) { }
 
       // Then sync from FastAPI
       try {
-        const [routineRes, prsRes, historyRes, settingsRes] = await Promise.all([
+        const [routineRes, prsRes, historyRes, settingsRes, profileRes] = await Promise.all([
           fetch(`${API_BASE_URL}/routine`, {
             headers: { 'Authorization': `Bearer ${token}` }
           }),
@@ -229,6 +265,9 @@ const App: React.FC = () => {
             headers: { 'Authorization': `Bearer ${token}` }
           }),
           fetch(`${API_BASE_URL}/settings`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          }),
+          fetch(`${API_BASE_URL}/profile`, {
             headers: { 'Authorization': `Bearer ${token}` }
           })
         ]);
@@ -280,8 +319,14 @@ const App: React.FC = () => {
               setIsDark(isDarkTheme);
               localStorage.setItem(THEME_STORAGE_KEY, settingsData.theme);
               if (isDarkTheme) document.documentElement.classList.add('dark');
-              else document.documentElement.classList.remove('dark');
             }
+          }
+        }
+
+        if (profileRes.ok) {
+          const profileData = await profileRes.json();
+          if (profileData) {
+            setUserProfile(profileData);
           }
         }
 
@@ -308,6 +353,40 @@ const App: React.FC = () => {
     }
   }, [userRoutine, token, hasSynced]);
 
+  // Auto-save from draft to userRoutine
+  useEffect(() => {
+    if (currentView === 'PLAN_EDITOR' && draftRoutine.length === 6) {
+      const sanitizedDraft = draftRoutine.map(day => ({
+        ...day,
+        exercises: day.exercises.filter(ex => ex.name && ex.name.trim() !== '')
+      }));
+
+      const allNamed = draftRoutine.every(day =>
+        day.exercises.every(ex => ex.name && ex.name.trim() !== '')
+      );
+
+      if (allNamed) {
+        if (JSON.stringify(sanitizedDraft) !== JSON.stringify(userRoutine)) {
+          setUserRoutine(JSON.parse(JSON.stringify(sanitizedDraft)));
+        }
+      }
+    }
+  }, [draftRoutine, currentView, userRoutine]);
+
+  // Session Persistence
+  useEffect(() => {
+    if (activeWorkout) localStorage.setItem(ACTIVE_WORKOUT_KEY, JSON.stringify(activeWorkout));
+    else localStorage.removeItem(ACTIVE_WORKOUT_KEY);
+  }, [activeWorkout]);
+
+  useEffect(() => {
+    localStorage.setItem(SESSION_RESULTS_KEY, JSON.stringify(currentSessionResults));
+  }, [currentSessionResults]);
+
+  useEffect(() => {
+    localStorage.setItem(VIEW_STORAGE_KEY, currentView);
+  }, [currentView]);
+
   useEffect(() => {
     if (token && hasSynced) {
       localStorage.setItem(PR_STORAGE_KEY, JSON.stringify(prs));
@@ -328,12 +407,19 @@ const App: React.FC = () => {
   useEffect(() => {
     if (userRoutine.length < 6) return;
     const dayIndex = new Date().getDay();
-    if (dayIndex === 0) setTodaySession(null);
-    else setTodaySession(userRoutine[dayIndex - 1]);
+    if (dayIndex === 0) {
+      setTodaySession(null);
+    } else {
+      const session = userRoutine[dayIndex - 1];
+      setTodaySession({
+        ...session,
+        exercises: session.exercises.filter(ex => ex.name && ex.name.trim() !== '')
+      });
+    }
   }, [userRoutine]);
 
   const updateExerciseProperty = (dayIdx: number, exId: string, updates: Partial<Exercise>) => {
-    setUserRoutine(prev => {
+    setDraftRoutine(prev => {
       const next = [...prev];
       const day = { ...next[dayIdx] };
       day.exercises = day.exercises.map(ex => ex.id === exId ? { ...ex, ...updates } : ex);
@@ -343,12 +429,12 @@ const App: React.FC = () => {
   };
 
   const addExercise = (dayIdx: number) => {
-    setUserRoutine(prev => {
+    setDraftRoutine(prev => {
       const next = [...prev];
       const day = { ...next[dayIdx] };
       day.exercises = [...day.exercises, {
         id: Math.random().toString(36).substr(2, 9),
-        name: 'New Exercise',
+        name: '',
         relation: 'NONE',
         targetSets: null,
         defaultMetric: MetricType.KG
@@ -358,10 +444,27 @@ const App: React.FC = () => {
     });
   };
 
+  const saveConfiguration = () => {
+    const sanitized = draftRoutine.map(day => ({
+      ...day,
+      exercises: day.exercises
+        .filter(ex => ex.name && ex.name.trim() !== '')
+        .map(ex => {
+          // If it's a multi-exercise relation but has no partner name, revert to Single (NONE)
+          if (ex.relation !== 'NONE' && (!ex.partnerName || ex.partnerName.trim() === '')) {
+            return { ...ex, relation: 'NONE', partnerName: undefined };
+          }
+          return ex;
+        })
+    }));
+    setUserRoutine(sanitized);
+    setCurrentView('HOME');
+  };
+
   const handleExerciseClick = (ex: Exercise) => {
     setSelectedOrId('PRIMARY');
     setFocusedExercise(ex);
-    setCurrentView('EXERCISE_DETAIL');
+    setIsLoggerOpen(true);
   };
 
   const handleSessionUpdate = (exId: string, sets: any[]) => {
@@ -385,7 +488,10 @@ const App: React.FC = () => {
       exercises: Object.entries(currentSessionResults).map(([exId, sets]) => ({
         exerciseId: exId,
         exerciseName: activeWorkout.exercises.find(e => e.id === exId)?.name || 'Unknown',
-        sets: (sets as any[]).filter((s: any) => s.isCompleted),
+        sets: (sets as any[]).filter((s: any) => s.isCompleted || (s.reps && Number(s.reps) > 0) || (s.metricValue && Number(s.metricValue) > 0)).map(s => ({
+          ...s,
+          isCompleted: true
+        })),
         timestamp: Date.now()
       })).filter(ex => ex.sets.length > 0)
     };
@@ -413,25 +519,85 @@ const App: React.FC = () => {
 
     setCurrentSessionResults({});
     setActiveWorkout(null);
+    localStorage.removeItem(ACTIVE_WORKOUT_KEY);
+    localStorage.removeItem(SESSION_RESULTS_KEY);
     setCurrentView('HOME');
   };
+
+  const finishSlot = async () => {
+    if (!focusedExercise || !token) {
+      setCurrentView('HOME');
+      return;
+    }
+
+    const logsToSave = Object.entries(currentSessionResults).map(([exId, sets]) => {
+      let exName = 'Unknown';
+      if (exId === focusedExercise.id) exName = focusedExercise.name;
+      else if (exId === `${focusedExercise.id}-partner`) exName = focusedExercise.partnerName || 'Unknown';
+
+      return {
+        exerciseId: exId,
+        exerciseName: exName,
+        sets: (sets as any[]).filter((s: any) => s.isCompleted || (s.reps && Number(s.reps) > 0) || (s.metricValue && Number(s.metricValue) > 0)).map(s => ({
+          ...s,
+          isCompleted: true
+        })),
+        timestamp: Date.now()
+      };
+    }).filter(ex => ex.sets.length > 0);
+
+    if (logsToSave.length > 0) {
+      const logEntry = {
+        workoutTitle: `Quick Log: ${focusedExercise.name}`,
+        date: new Date().toLocaleDateString(),
+        timestamp: Date.now(),
+        isLoadOut: isLoadOutMode,
+        exercises: logsToSave
+      };
+
+      try {
+        const res = await fetch(`${API_BASE_URL}/history`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(logEntry)
+        });
+
+        if (res.ok) {
+          const updatedHistory = [logEntry as any, ...workoutHistory];
+          setWorkoutHistory(updatedHistory);
+          localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(updatedHistory));
+        }
+      } catch (error) {
+        console.error("Failed to save slot history:", error);
+      }
+    }
+
+    // Clear session results and close logger modal
+    setCurrentSessionResults({});
+    setFocusedExercise(null);
+    setIsLoggerOpen(false);
+  };
+
 
   const accentColorClass = isLoadOutMode ? 'text-amber-500' : 'text-cyan-500';
   const accentBgClass = isLoadOutMode ? 'bg-amber-500' : 'bg-cyan-500';
 
-  const Header = ({ title, showLogo = false }: { title: string, showLogo?: boolean }) => (
+  const Header = ({ title, showLogo = false, onBack }: { title: string, showLogo?: boolean, onBack?: () => void }) => (
     <header className="sticky top-0 z-[60] flex items-center justify-between mb-8 px-5 py-4 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-xl border-b border-zinc-200 dark:border-zinc-800 -mx-6">
       <div className="flex items-center gap-3">
         {showLogo ? (
           <button
             onClick={() => setIsSidebarOpen(true)}
-            className={`w-10 h-10 rounded-xl flex items-center justify-center overflow-hidden active:scale-95 transition-transform bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800`}
+            className={`w-10 h-10 rounded-xl flex items-center justify-center overflow-hidden active:scale-95 transition-transform bg-zinc-900 border border-zinc-800 text-white font-black uppercase`}
           >
-            <img src="/logo.png" alt="Logo" className="w-8 h-8 object-contain" />
+            {username.charAt(0) || 'U'}
           </button>
         ) : (
           <button
-            onClick={() => setCurrentView('HOME')}
+            onClick={onBack || (() => currentView === 'EXERCISE_DETAIL' ? setCurrentView('HOME') : setIsSidebarOpen(true))}
             className="w-10 h-10 rounded-xl bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center text-zinc-500 active:scale-95 transition-transform"
           >
             ←
@@ -439,16 +605,6 @@ const App: React.FC = () => {
         )}
         <h1 className="text-xl font-black text-zinc-900 dark:text-white uppercase italic tracking-tighter">{title}</h1>
       </div>
-      {!showLogo && (
-        <button
-          onClick={() => setIsSidebarOpen(true)}
-          className="w-10 h-10 flex-shrink-0 glass-panel border border-zinc-200 dark:border-zinc-800 rounded-xl flex items-center justify-center text-zinc-900 dark:text-white active:scale-95 transition-transform overflow-hidden"
-        >
-          <div className={`w-full h-full ${accentBgClass} flex items-center justify-center text-[10px] font-black italic`}>
-            ID
-          </div>
-        </button>
-      )}
     </header>
   );
 
@@ -567,7 +723,7 @@ const App: React.FC = () => {
             <div className="flex-1 h-px bg-zinc-200 dark:bg-zinc-800"></div>
           </div>
           <div className="space-y-4">
-            {userRoutine[selectedEditDayIdx]?.exercises.map((ex) => (
+            {draftRoutine[selectedEditDayIdx]?.exercises.map((ex) => (
               <div key={ex.id} className="bg-zinc-50 dark:bg-zinc-900/40 p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800 space-y-5 shadow-sm active:scale-[0.99] transition-transform">
                 <div className="space-y-3">
                   <div className="flex gap-2 items-center">
@@ -579,9 +735,14 @@ const App: React.FC = () => {
                       className="flex-1 bg-transparent border-none outline-none font-bold text-lg text-zinc-900 dark:text-white"
                     />
                     <button onClick={() => {
-                      const next = [...userRoutine];
-                      next[selectedEditDayIdx].exercises = next[selectedEditDayIdx].exercises.filter(eItem => eItem.id !== ex.id);
-                      setUserRoutine(next);
+                      setDraftRoutine(prev => {
+                        const next = [...prev];
+                        next[selectedEditDayIdx] = {
+                          ...next[selectedEditDayIdx],
+                          exercises: next[selectedEditDayIdx].exercises.filter(eItem => eItem.id !== ex.id)
+                        };
+                        return next;
+                      });
                     }} className="text-zinc-400 hover:text-red-500 p-2 text-2xl transition-colors">×</button>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
@@ -603,9 +764,9 @@ const App: React.FC = () => {
                 <div className="space-y-2">
                   <span className="text-[8px] font-black uppercase text-zinc-500 tracking-widest">Slot Type</span>
                   <div className="flex bg-zinc-200 dark:bg-zinc-800 p-0.5 rounded-lg border border-zinc-300 dark:border-zinc-700">
-                    <button onClick={() => updateExerciseProperty(selectedEditDayIdx, ex.id, { relation: 'NONE' })} className={`flex-1 py-1.5 text-[8px] font-black uppercase rounded ${ex.relation === 'NONE' ? 'bg-white dark:bg-zinc-700 shadow-sm text-zinc-900 dark:text-white' : 'text-zinc-500'}`}>Single</button>
-                    <button onClick={() => updateExerciseProperty(selectedEditDayIdx, ex.id, { relation: 'AND', partnerName: ex.partnerName || 'Secondary' })} className={`flex-1 py-1.5 text-[8px] font-black uppercase rounded ${ex.relation === 'AND' ? 'bg-purple-600 text-white shadow-sm' : 'text-zinc-500'}`}>Superset (AND)</button>
-                    <button onClick={() => updateExerciseProperty(selectedEditDayIdx, ex.id, { relation: 'OR', partnerName: ex.partnerName || 'Alternative' })} className={`flex-1 py-1.5 text-[8px] font-black uppercase rounded ${ex.relation === 'OR' ? 'bg-amber-600 text-white shadow-sm' : 'text-zinc-500'}`}>Alternative (OR)</button>
+                    <button onClick={() => updateExerciseProperty(selectedEditDayIdx, ex.id, { relation: 'NONE' })} className={`flex-1 py-1.5 text-[8px] font-black uppercase rounded ${ex.relation === 'NONE' ? 'bg-white dark:bg-zinc-700 shadow-sm text-zinc-900 dark:text-white' : 'text-zinc-500'}`}>Anatomy</button>
+                    <button onClick={() => updateExerciseProperty(selectedEditDayIdx, ex.id, { relation: 'AND', partnerName: '' })} className={`flex-1 py-1.5 text-[8px] font-black uppercase rounded ${ex.relation === 'AND' ? 'bg-purple-600 text-white shadow-sm' : 'text-zinc-500'}`}>Superset (AND)</button>
+                    <button onClick={() => updateExerciseProperty(selectedEditDayIdx, ex.id, { relation: 'OR', partnerName: '' })} className={`flex-1 py-1.5 text-[8px] font-black uppercase rounded ${ex.relation === 'OR' ? 'bg-amber-600 text-white shadow-sm' : 'text-zinc-500'}`}>Alternative (OR)</button>
                   </div>
                 </div>
                 {ex.relation !== 'NONE' && (
@@ -635,7 +796,7 @@ const App: React.FC = () => {
         </section>
       </div>
       <div className="fixed bottom-0 left-0 right-0 p-6 glass-panel border-t border-zinc-200 dark:border-zinc-800 z-50">
-        <button onClick={() => setCurrentView('HOME')} className={`w-full text-white dark:text-black font-black uppercase py-4 rounded-xl text-lg shadow-xl active:scale-95 transition-all ${accentBgClass}`}>
+        <button onClick={saveConfiguration} className={`w-full text-white dark:text-black font-black uppercase py-4 rounded-xl text-lg shadow-xl active:scale-95 transition-all ${accentBgClass}`}>
           Save Configuration
         </button>
       </div>
@@ -746,82 +907,111 @@ const App: React.FC = () => {
     </div>
   );
 
+  const getLastLoggedSets = (exId: string, exName: string) => {
+    // Find the most recent log containing this exercise
+    for (const log of workoutHistory) {
+      const foundEx = log.exercises.find(e => e.exerciseId === exId || e.exerciseName === exName);
+      if (foundEx && foundEx.sets && foundEx.sets.length > 0) {
+        // Return a deep copy of the sets so we don't accidentally mutate history
+        // Also map over them to ensure they have fresh unique IDs to avoid React rendering bugs
+        return foundEx.sets.map(s => ({
+          ...s,
+          id: Math.random().toString(36).substr(2, 9),
+          isCompleted: false // Make them uncompleted so the user can check them off again
+        }));
+      }
+    }
+    return undefined;
+  };
+
   const renderLoggerView = () => {
     if (!focusedExercise) return null;
 
     return (
-      <div className="p-6 pt-0 pb-32 animate-in fade-in slide-in-from-right-10 duration-500">
-        <Header title={selectedOrId === 'PRIMARY' ? focusedExercise.name : focusedExercise.partnerName!} />
+      <div className="fixed inset-0 z-[80] flex flex-col justify-end max-w-md mx-auto">
+        {/* Backdrop */}
+        <div
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-300"
+          onClick={() => setIsLoggerOpen(false)}
+        />
 
-        <div className="flex flex-col items-center mb-8 -mt-4">
-          <p className={`text-[10px] font-black uppercase italic tracking-[0.3em] ${accentColorClass}`}>
-            {isLoadOutMode ? 'Active Recovery Monitor' : 'Intensity Tracking Active'}
-          </p>
-        </div>
+        {/* Bottom Sheet wrapper */}
+        <div className="relative bg-white dark:bg-zinc-950 rounded-t-3xl shadow-[0_-10px_40px_rgba(0,0,0,0.5)] max-h-[90vh] overflow-y-auto w-full animate-in slide-in-from-bottom-full duration-300 p-6 pb-32">
 
-        {isLoadOutMode && (
-          <div className="mb-6 p-3 bg-amber-500/5 border border-amber-500/20 rounded-xl text-center">
-            <span className="text-[10px] font-black uppercase text-amber-500 tracking-[0.2em]">Target: Maintenance Load Only</span>
+          <div className="w-12 h-1.5 bg-zinc-300 dark:bg-zinc-800 rounded-full mx-auto mb-6" />
+
+          <Header title={selectedOrId === 'PRIMARY' ? focusedExercise.name : focusedExercise.partnerName!} onBack={() => setIsLoggerOpen(false)} />
+
+          <div className="flex flex-col items-center mb-8 -mt-4">
+            <p className={`text-[10px] font-black uppercase italic tracking-[0.3em] ${accentColorClass}`}>
+              {isLoadOutMode ? 'Active Recovery Monitor' : 'Intensity Tracking Active'}
+            </p>
           </div>
-        )}
 
-        {focusedExercise.relation === 'OR' && (
-          <div className="flex bg-zinc-100 dark:bg-zinc-900 p-1 rounded-2xl mb-8 border border-zinc-200 dark:border-zinc-800">
-            <button
-              onClick={() => setSelectedOrId('PRIMARY')}
-              className={`flex-1 py-3 px-2 rounded-xl text-[10px] font-black uppercase transition-all truncate ${selectedOrId === 'PRIMARY' ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20' : 'text-zinc-500'}`}
-            >
-              {focusedExercise.name}
-            </button>
-            <button
-              onClick={() => setSelectedOrId('PARTNER')}
-              className={`flex-1 py-3 px-2 rounded-xl text-[10px] font-black uppercase transition-all truncate ${selectedOrId === 'PARTNER' ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20' : 'text-zinc-500'}`}
-            >
-              {focusedExercise.partnerName}
-            </button>
-          </div>
-        )}
+          {isLoadOutMode && (
+            <div className="mb-6 p-3 bg-amber-500/5 border border-amber-500/20 rounded-xl text-center">
+              <span className="text-[10px] font-black uppercase text-amber-500 tracking-[0.2em]">Target: Maintenance Load Only</span>
+            </div>
+          )}
 
-        {focusedExercise.relation === 'AND' ? (
-          <div className="space-y-12">
-            <div className="space-y-4">
-              <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-purple-500 px-2 flex items-center gap-2">
-                Superset Protocol
-              </h3>
-              <div className="space-y-8">
-                <div className="p-4 bg-zinc-50 dark:bg-zinc-900/40 rounded-3xl border border-zinc-200 dark:border-zinc-800 space-y-4">
-                  <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">1. {focusedExercise.name}</h4>
-                  <ExerciseLogger
-                    exercise={{ ...focusedExercise, relation: 'NONE' }}
-                    onUpdate={(sets) => handleSessionUpdate(focusedExercise.id, sets)}
-                    initialSets={currentSessionResults[focusedExercise.id]}
-                    isLoadOutMode={isLoadOutMode}
-                  />
-                </div>
-                <div className="p-4 bg-zinc-50 dark:bg-zinc-900/40 rounded-3xl border border-zinc-200 dark:border-zinc-800 space-y-4">
-                  <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">2. {focusedExercise.partnerName}</h4>
-                  <ExerciseLogger
-                    exercise={{ ...focusedExercise, name: focusedExercise.partnerName!, defaultMetric: focusedExercise.partnerMetric!, relation: 'NONE' }}
-                    onUpdate={(sets) => handleSessionUpdate(`${focusedExercise.id}-partner`, sets)}
-                    initialSets={currentSessionResults[`${focusedExercise.id}-partner`]}
-                    isLoadOutMode={isLoadOutMode}
-                  />
+          {focusedExercise.relation === 'OR' && (
+            <div className="flex bg-zinc-100 dark:bg-zinc-900 p-1 rounded-2xl mb-8 border border-zinc-200 dark:border-zinc-800">
+              <button
+                onClick={() => setSelectedOrId('PRIMARY')}
+                className={`flex-1 py-3 px-2 rounded-xl text-[10px] font-black uppercase transition-all truncate ${selectedOrId === 'PRIMARY' ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20' : 'text-zinc-500'}`}
+              >
+                {focusedExercise.name}
+              </button>
+              <button
+                onClick={() => setSelectedOrId('PARTNER')}
+                className={`flex-1 py-3 px-2 rounded-xl text-[10px] font-black uppercase transition-all truncate ${selectedOrId === 'PARTNER' ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20' : 'text-zinc-500'}`}
+              >
+                {focusedExercise.partnerName}
+              </button>
+            </div>
+          )}
+
+          {focusedExercise.relation === 'AND' ? (
+            <div className="space-y-12">
+              <div className="space-y-4">
+                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-purple-500 px-2 flex items-center gap-2">
+                  Superset Protocol
+                </h3>
+                <div className="space-y-8">
+                  <div className="p-4 bg-zinc-50 dark:bg-zinc-900/40 rounded-3xl border border-zinc-200 dark:border-zinc-800 space-y-4">
+                    <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">1. {focusedExercise.name}</h4>
+                    <ExerciseLogger
+                      exercise={{ ...focusedExercise, relation: 'NONE' }}
+                      onUpdate={(sets) => handleSessionUpdate(focusedExercise.id, sets)}
+                      initialSets={currentSessionResults[focusedExercise.id] || getLastLoggedSets(focusedExercise.id, focusedExercise.name)}
+                      isLoadOutMode={isLoadOutMode}
+                    />
+                  </div>
+                  <div className="p-4 bg-zinc-50 dark:bg-zinc-900/40 rounded-3xl border border-zinc-200 dark:border-zinc-800 space-y-4">
+                    <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">2. {focusedExercise.partnerName}</h4>
+                    <ExerciseLogger
+                      exercise={{ ...focusedExercise, name: focusedExercise.partnerName!, defaultMetric: focusedExercise.partnerMetric!, relation: 'NONE' }}
+                      onUpdate={(sets) => handleSessionUpdate(`${focusedExercise.id}-partner`, sets)}
+                      initialSets={currentSessionResults[`${focusedExercise.id}-partner`] || getLastLoggedSets(`${focusedExercise.id}-partner`, focusedExercise.partnerName!)}
+                      isLoadOutMode={isLoadOutMode}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        ) : (
-          <ExerciseLogger
-            key={`${focusedExercise.id}-${selectedOrId}`}
-            exercise={selectedOrId === 'PRIMARY' ? focusedExercise : { ...focusedExercise, name: focusedExercise.partnerName!, defaultMetric: focusedExercise.partnerMetric! }}
-            onUpdate={(sets) => handleSessionUpdate(selectedOrId === 'PRIMARY' ? focusedExercise.id : `${focusedExercise.id}-partner`, sets)}
-            initialSets={currentSessionResults[selectedOrId === 'PRIMARY' ? focusedExercise.id : `${focusedExercise.id}-partner`]}
-            isLoadOutMode={isLoadOutMode}
-          />
-        )}
+          ) : (
+            <ExerciseLogger
+              key={`${focusedExercise.id}-${selectedOrId}`}
+              exercise={selectedOrId === 'PRIMARY' ? focusedExercise : { ...focusedExercise, name: focusedExercise.partnerName!, defaultMetric: focusedExercise.partnerMetric! }}
+              onUpdate={(sets) => handleSessionUpdate(selectedOrId === 'PRIMARY' ? focusedExercise.id : `${focusedExercise.id}-partner`, sets)}
+              initialSets={currentSessionResults[selectedOrId === 'PRIMARY' ? focusedExercise.id : `${focusedExercise.id}-partner`] || getLastLoggedSets(selectedOrId === 'PRIMARY' ? focusedExercise.id : `${focusedExercise.id}-partner`, selectedOrId === 'PRIMARY' ? focusedExercise.name : focusedExercise.partnerName!)}
+              isLoadOutMode={isLoadOutMode}
+            />
+          )}
 
-        <div className="fixed bottom-0 left-0 right-0 p-6 glass-panel border-t border-zinc-200 dark:border-zinc-800 z-50">
-          <button onClick={() => setCurrentView('HOME')} className={`w-full text-white font-black uppercase py-4 rounded-xl text-lg shadow-xl active:scale-95 transition-all ${isLoadOutMode ? 'bg-amber-600' : 'bg-cyan-600'}`}>Complete Slot</button>
+          <div className="sticky bottom-0 left-0 right-0 pt-6 mt-8 z-50 bg-white dark:bg-zinc-950 border-t border-zinc-200 dark:border-zinc-800">
+            <button onClick={finishSlot} className={`w-full text-white dark:text-black font-black uppercase py-4 rounded-xl text-lg shadow-xl active:scale-95 transition-all ${isLoadOutMode ? 'bg-amber-600' : 'bg-cyan-600'}`}>Complete Slot</button>
+          </div>
         </div>
       </div>
     );
@@ -836,15 +1026,7 @@ const App: React.FC = () => {
 
     return (
       <div className="p-6 pt-0 space-y-8 animate-in fade-in slide-in-from-right-10 duration-500 pb-32">
-        <div className="flex justify-between items-center">
-          <Header title="Leaderboard Matrix" />
-          <button
-            onClick={fetchLeaderboard}
-            className="p-3 bg-zinc-100 dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 text-sm active:scale-95 transition-all outline-none"
-          >
-            🔄
-          </button>
-        </div>
+        <Header title="Leaderboard" />
 
         <div className="space-y-6">
           <div className="flex justify-between items-end px-1">
@@ -854,7 +1036,7 @@ const App: React.FC = () => {
 
           {/* Tab Selector */}
           <div className="bg-zinc-100 dark:bg-zinc-900/50 p-1.5 rounded-2xl flex gap-1 border border-zinc-200 dark:border-zinc-800">
-            {['total', 'bench', 'squat', 'deadlift'].map((field) => (
+            {['bodyweight_ratio', 'bench', 'squat', 'deadlift'].map((field) => (
               <button
                 key={field}
                 onClick={() => setLeaderboardSortField(field as any)}
@@ -863,7 +1045,7 @@ const App: React.FC = () => {
                   : 'text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300'
                   }`}
               >
-                {field}
+                {field === 'bodyweight_ratio' ? 'BW RATIO' : field}
               </button>
             ))}
           </div>
@@ -880,7 +1062,7 @@ const App: React.FC = () => {
                       <h4 className="font-bold text-zinc-800 dark:text-zinc-100 text-sm truncate max-w-[120px]">{entry.username}</h4>
                       <div className="flex gap-2 items-center mt-1">
                         <span className={`text-[9px] font-black uppercase italic ${accentColorClass}`}>
-                          {leaderboardSortField.toUpperCase()}: {entry[leaderboardSortField]} KG
+                          {leaderboardSortField === 'bodyweight_ratio' ? 'BW RATIO' : leaderboardSortField.toUpperCase()}: {entry[leaderboardSortField]} {leaderboardSortField === 'bodyweight_ratio' ? 'x' : 'KG'}
                         </span>
                       </div>
                     </div>
@@ -888,10 +1070,12 @@ const App: React.FC = () => {
 
                   <div className="flex flex-col items-end gap-1">
                     <div className="flex gap-1.5">
-                      {['bench', 'squat', 'deadlift', 'total'].filter(f => f !== leaderboardSortField).map(f => (
+                      {['bench', 'squat', 'deadlift', 'bodyweight_ratio'].filter(f => f !== leaderboardSortField).map(f => (
                         <div key={f} className="text-center bg-zinc-50 dark:bg-zinc-900 px-2 py-1 rounded-lg border border-zinc-200 dark:border-zinc-800">
-                          <span className="text-[6px] font-black uppercase text-zinc-400 block">{f}</span>
-                          <span className="text-[8px] font-black italic text-zinc-600 dark:text-zinc-300">{entry[f as keyof LeaderboardEntry]}</span>
+                          <span className="text-[6px] font-black uppercase text-zinc-400 block">{f === 'bodyweight_ratio' ? 'BW RATIO' : f}</span>
+                          <span className="text-[8px] font-black italic text-zinc-600 dark:text-zinc-300">
+                            {f === 'bodyweight_ratio' ? `${entry[f as keyof LeaderboardEntry]}x` : entry[f as keyof LeaderboardEntry]}
+                          </span>
                         </div>
                       ))}
                     </div>
@@ -919,6 +1103,117 @@ const App: React.FC = () => {
     );
   };
 
+  const updateProfileProperty = (updates: Partial<UserProfile>) => {
+    const next = { ...userProfile, ...updates };
+    setUserProfile(next);
+    if (token) {
+      fetch(`${API_BASE_URL}/profile`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(next)
+      }).catch(e => console.error("Failed to save profile:", e));
+    }
+  };
+
+  const renderProfile = () => (
+    <div className="p-6 pt-0 space-y-8 animate-in fade-in slide-in-from-right-10 duration-500 pb-32">
+      <Header title="Identity Core" />
+
+      <div className="flex flex-col items-center space-y-4">
+        <div className="w-24 h-24 rounded-[32px] bg-zinc-900 border border-zinc-800 flex items-center justify-center text-4xl font-black text-white shadow-2xl">
+          {username.charAt(0).toUpperCase() || 'U'}
+        </div>
+        <div className="text-center">
+          <h2 className="text-2xl font-black italic tracking-tighter text-zinc-900 dark:text-white uppercase">{username}</h2>
+          <p className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em]">Active Bio-Signature</p>
+        </div>
+      </div>
+
+      <div className="space-y-6">
+        <div className="glass-panel p-6 border border-zinc-200 dark:border-zinc-800 space-y-4">
+          <h3 className="text-[10px] font-black uppercase text-zinc-400 tracking-widest px-2">Biometrics</h3>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-[8px] font-black text-zinc-500 uppercase tracking-widest ml-1">Height (cm)</label>
+              <input
+                type="text"
+                value={userProfile.height || ''}
+                onChange={(e) => updateProfileProperty({ height: e.target.value })}
+                placeholder="-- cm"
+                className="w-full bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-100 dark:border-zinc-800 rounded-xl py-3 px-4 text-zinc-900 dark:text-white font-bold outline-none focus:ring-1 ring-cyan-500/30"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[8px] font-black text-zinc-500 uppercase tracking-widest ml-1">Weight (kg)</label>
+              <input
+                type="text"
+                value={userProfile.weight || ''}
+                onChange={(e) => updateProfileProperty({ weight: e.target.value })}
+                placeholder="-- kg"
+                className="w-full bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-100 dark:border-zinc-800 rounded-xl py-3 px-4 text-zinc-900 dark:text-white font-bold outline-none focus:ring-1 ring-cyan-500/30"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[8px] font-black text-zinc-500 uppercase tracking-widest ml-1">Age</label>
+              <input
+                type="number"
+                value={userProfile.age || ''}
+                onChange={(e) => updateProfileProperty({ age: e.target.value ? parseInt(e.target.value) : null })}
+                placeholder="--"
+                className="w-full bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-100 dark:border-zinc-800 rounded-xl py-3 px-4 text-zinc-900 dark:text-white font-bold outline-none focus:ring-1 ring-cyan-500/30"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[8px] font-black text-zinc-500 uppercase tracking-widest ml-1">Gender</label>
+              <select
+                value={userProfile.gender || ''}
+                onChange={(e) => updateProfileProperty({ gender: e.target.value })}
+                className="w-full bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-100 dark:border-zinc-800 rounded-xl py-3 px-4 text-zinc-900 dark:text-white font-bold outline-none focus:ring-1 ring-cyan-500/30 appearance-none"
+              >
+                <option value="" disabled>Select</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div className="glass-panel p-6 border border-zinc-200 dark:border-zinc-800 space-y-4">
+          <h3 className="text-[10px] font-black uppercase text-zinc-400 tracking-widest px-2">Fitness Objective</h3>
+          <div className="space-y-1.5">
+            <label className="text-[8px] font-black text-zinc-500 uppercase tracking-widest ml-1">Current Goal</label>
+            <input
+              type="text"
+              value={userProfile.fitness_goal || ''}
+              onChange={(e) => updateProfileProperty({ fitness_goal: e.target.value })}
+              placeholder="e.g., Strength, Hypertrophy"
+              className="w-full bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-100 dark:border-zinc-800 rounded-xl py-3 px-4 text-zinc-900 dark:text-white font-bold outline-none focus:ring-1 ring-cyan-500/30"
+            />
+          </div>
+        </div>
+
+        <div className="glass-panel p-6 border border-zinc-200 dark:border-zinc-800 space-y-4">
+          <h3 className="text-[10px] font-black uppercase text-zinc-400 tracking-widest px-2">Account Control</h3>
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center justify-between p-5 rounded-[24px] border border-red-500/20 bg-red-500/5 text-red-500 active:scale-95 transition-all"
+          >
+            <div className="flex items-center gap-3">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+              <span className="text-xs font-black uppercase tracking-widest">Terminate Session</span>
+            </div>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
   if (!token) {
     return <AuthScreen onLogin={handleLogin} apiBaseUrl={API_BASE_URL} />;
   }
@@ -934,35 +1229,33 @@ const App: React.FC = () => {
       <aside className={`fixed inset-y-0 left-0 w-64 bg-zinc-100 dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800 z-[70] transition-transform duration-300 transform ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="h-full flex flex-col p-6">
           <div className="flex justify-between items-center mb-12">
-            <div className={`w-12 h-12 rounded-xl flex items-center justify-center bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 overflow-hidden`}>
-              <img src="/logo.png" alt="Logo" className="w-10 h-10 object-contain" />
-            </div>
-            <button onClick={() => setIsSidebarOpen(false)} className="text-zinc-400 text-2xl">×</button>
+            <button
+              onClick={() => navigateTo('PROFILE')}
+              className="flex items-center gap-3 active:scale-95 transition-transform group"
+            >
+              <div className="w-12 h-12 rounded-xl flex-shrink-0 flex items-center justify-center bg-zinc-900 border border-zinc-800 text-white font-black text-xl uppercase">
+                {username.charAt(0) || 'U'}
+              </div>
+              <div className="flex flex-col items-start leading-tight">
+                <span className="text-sm font-black text-zinc-900 dark:text-white uppercase tracking-tighter italic group-hover:text-cyan-500 transition-colors">{username}</span>
+                <span className="text-[8px] font-black text-zinc-400 uppercase tracking-[0.2em]">Active ID</span>
+              </div>
+            </button>
+            <button onClick={() => setIsSidebarOpen(false)} className="text-zinc-400 text-2xl p-2">×</button>
           </div>
           <div className="flex-1 space-y-8">
             <nav className="space-y-2">
-              <SideButton active={currentView === 'HOME'} onClick={() => navigateTo('HOME')} icon={<HomeIcon />} label="Dashboard" />
-              <SideButton active={currentView === 'LEADERBOARD'} onClick={() => navigateTo('LEADERBOARD')} icon={<LeaderboardIcon />} label="Leaderboard" />
-              <SideButton active={currentView === 'PLAN_EDITOR'} onClick={() => navigateTo('PLAN_EDITOR')} icon={<PlanIcon />} label="Routine" />
-              <SideButton active={currentView === 'STATS'} onClick={() => navigateTo('STATS')} icon={<StatsIcon />} label="Signal" />
-              <SideButton active={currentView === 'HISTORY'} onClick={() => navigateTo('HISTORY')} icon={<HistoryIcon />} label="Archive" />
+              <SideButton active={currentView === 'HOME'} onClick={() => navigateTo('HOME')} icon={<HomeIcon />} label="Dashboard" isLoadOut={isLoadOutMode} />
+              <SideButton active={currentView === 'LEADERBOARD'} onClick={() => navigateTo('LEADERBOARD')} icon={<LeaderboardIcon />} label="Leaderboard" isLoadOut={isLoadOutMode} />
+              <SideButton active={currentView === 'PLAN_EDITOR'} onClick={() => navigateTo('PLAN_EDITOR')} icon={<PlanIcon />} label="Routine" isLoadOut={isLoadOutMode} />
+              <SideButton active={currentView === 'STATS'} onClick={() => navigateTo('STATS')} icon={<StatsIcon />} label="Anatomy" isLoadOut={isLoadOutMode} />
+              <SideButton active={currentView === 'HISTORY'} onClick={() => navigateTo('HISTORY')} icon={<HistoryIcon />} label="Archive" isLoadOut={isLoadOutMode} />
             </nav>
 
             <div className="h-px bg-zinc-200 dark:bg-zinc-800" />
 
             <div className="space-y-4">
               <h3 className="text-[10px] font-black uppercase text-zinc-400 tracking-widest px-2">Operational Mode</h3>
-              <button
-                onClick={handleLogout}
-                className="w-full flex items-center justify-between p-4 rounded-3xl border border-red-500/20 bg-red-500/5 text-red-500 active:scale-95 transition-all mb-4"
-              >
-                <div className="flex items-center gap-3">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                  </svg>
-                  <span className="text-[10px] font-black uppercase tracking-widest">Session Logout</span>
-                </div>
-              </button>
               <button onClick={toggleLoadOut} className={`w-full flex items-center justify-between p-4 rounded-3xl border transition-all active:scale-95 ${isLoadOutMode ? 'border-amber-500 bg-amber-500/10 text-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.2)]' : 'border-zinc-200 dark:border-zinc-800 text-zinc-500 bg-white dark:bg-zinc-800'}`}>
                 <div className="flex items-center gap-3">
                   <LoadOutIcon />
@@ -992,7 +1285,8 @@ const App: React.FC = () => {
         {currentView === 'STATS' && renderStats()}
         {currentView === 'HISTORY' && renderHistory()}
         {currentView === 'LEADERBOARD' && renderLeaderboard()}
-        {currentView === 'EXERCISE_DETAIL' && renderLoggerView()}
+        {currentView === 'PROFILE' && renderProfile()}
+        {isLoggerOpen && renderLoggerView()}
         {currentView === 'WORKOUT' && activeWorkout && (
           <div className="p-6 pt-0 pb-32 animate-in fade-in slide-in-from-right-10 duration-500">
             <Header title={activeWorkout.title} />
@@ -1009,7 +1303,7 @@ const App: React.FC = () => {
                   <ExerciseLogger
                     exercise={ex}
                     onUpdate={(sets) => handleSessionUpdate(ex.id, sets)}
-                    initialSets={currentSessionResults[ex.id]}
+                    initialSets={currentSessionResults[ex.id] || getLastLoggedSets(ex.id, ex.name)}
                   />
                 </div>
               ))}
@@ -1024,12 +1318,18 @@ const App: React.FC = () => {
   );
 };
 
-const SideButton = ({ active, onClick, icon, label }: { active: boolean, onClick: () => void, icon: React.ReactNode, label: string }) => (
-  <button onClick={onClick} className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all active:scale-95 ${active ? 'bg-green-500/10 text-green-500 border border-green-500/20' : 'text-zinc-500 hover:bg-zinc-200 dark:hover:bg-zinc-800'}`}>
-    {icon}
-    <span className="text-xs font-black uppercase tracking-[0.1em]">{label}</span>
-  </button>
-);
+const SideButton = ({ active, onClick, icon, label, isLoadOut }: { active: boolean, onClick: () => void, icon: React.ReactNode, label: string, isLoadOut?: boolean }) => {
+  const activeClass = isLoadOut
+    ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20'
+    : 'bg-cyan-500/10 text-cyan-500 border border-cyan-500/20';
+
+  return (
+    <button onClick={onClick} className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all active:scale-95 ${active ? activeClass : 'text-zinc-500 hover:bg-zinc-200 dark:hover:bg-zinc-800'}`}>
+      {icon}
+      <span className="text-xs font-black uppercase tracking-[0.1em]">{label}</span>
+    </button>
+  );
+};
 
 const MenuIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
